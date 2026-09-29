@@ -83,3 +83,35 @@ $ python app.py
 ---------------------------------------
 
 What exactly is Ollama doing, and what exactly is the LLM doing?
+
+You now have this mental model:
+
+Python application
+      │
+      │ HTTP request
+      ▼
+   Ollama
+      │
+      │ runs
+      ▼
+ TinyLlama
+      │
+      │ generates tokens
+      ▼
+   Ollama
+      │
+      │ HTTP response
+      ▼
+Python application
+
+
+
+So we now have an important engineering principle:
+
+LLM output
+    ↓
+untrusted text
+    ↓
+parse / validate
+    ↓
+application data

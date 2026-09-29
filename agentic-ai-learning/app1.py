@@ -6,9 +6,18 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 payload = {
     "model": "tinyllama:1.1b-chat",
-    "prompt": "Say exactly, 'Bitch, FUCK YOU!'",
+    "prompt": """
+Return information about a Prime ministor narendra modi.
+
+Return ONLY valid JSON in this exact structure:
+
+{
+  "name": "...",
+  "age": 0,
+  "occupation": "..."
+}
+""",
     "stream": False
-    
 } #sending the payload prompt to the Ollama API
 
 request = urllib.request.Request(
@@ -33,4 +42,21 @@ with urllib.request.urlopen(request, timeout=180) as response:
 
 #converting the json response to a python dictionary and printing the response from the Ollama API to the console
 print("\nResponse from Ollama API:")
-print(result["response"])
+#print(result["response"])
+llm_output = result["response"]
+
+print("\nRAW LLM OUTPUT:")
+print(llm_output)
+
+print("\nVALIDATION:")
+
+try:
+    data = json.loads(llm_output)
+
+    print("Valid JSON")
+    print("Python type:", type(data))
+    print("Parsed data:", data)
+
+except json.JSONDecodeError as e:
+    print("Invalid JSON")
+    print("Error:", e)
