@@ -1,0 +1,85 @@
+---------------------------------------
+Your prompt
+    ↓
+Tokenizer
+    ↓
+Token IDs
+    ↓
+LLM inference
+    ↓
+Next-token prediction
+    ↓
+Token
+    ↓
+Next-token prediction
+    ↓
+Token
+    ↓
+...
+    ↓
+Generated text
+
+
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:04.244617Z', 'response': ' power', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:04.378672Z', 'response': ' to', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:04.5123686Z', 'response': ' produce', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:04.6540433Z', 'response': ' large', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:04.7953622Z', 'response': '-', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:04.9291835Z', 'response': 'scale', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:05.0703989Z', 'response': ' renew', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:05.2120011Z', 'response': 'able', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:05.3453856Z', 'response': ' electric', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:05.4783513Z', 'response': 'ity', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:05.6125754Z', 'response': '.', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:32:05.7472663Z', 'response': '', 'done': True, 'done_reason': 'stop', 
+
+
+chunks are bsically tokens being generated
+How does the model know when to stop?
+
+The key idea is that generation has a stopping condition.
+
+At each generation step, the model predicts a probability distribution over possible next tokens:
+
+"I am an AI" + ?
+                 ↓
+        probability distribution
+                 ↓
+        "agent"   42%
+        "model"   18%
+        "system"  7%
+        ...
+        <EOS>     0.3%
+
+Instead, the model generates tokens until the generation process encounters a condition that tells the runtime to stop.
+we can even control the output token to be generated
+
+
+$ python app.py 
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:43.8808193Z', 'response': 'S', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:43.9174729Z', 'response': 'ure', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:43.9564031Z', 'response': ',', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:43.9939251Z', 'response': ' I', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.0311821Z', 'response': "'", 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.0685886Z', 'response': 'd', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.1066871Z', 'response': ' be', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.1442056Z', 'response': ' happy', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.1821321Z', 'response': ' to', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.2196505Z', 'response': ' explain', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.25754Z', 'response': ' how', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.2937458Z', 'response': ' a', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.3318865Z', 'response': ' typical', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.3693543Z', 'response': ' water', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.4080072Z', 'response': ' tur', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.445687Z', 'response': 'bine', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.4848636Z', 'response': ' works', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.5232116Z', 'response': ' in', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.5599293Z', 'response': ' five', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.5984492Z', 'response': ' steps', 'done': False}
+{'model': 'tinyllama:1.1b-chat', 'created_at': '2026-09-29T16:57:44.6002491Z', 'response': '', 'done': True, 'done_reason': 'length', 'context': [529, 29989, 5205, 29989, 29958, 13, 3492, 526, 263, 8444, 319, 29902, 20255, 29889, 2, 29871, 13, 29966, 29989, 1792, 29989, 29958, 13, 9544, 7420, 920, 947, 263, 4094, 7013, 26062, 664, 297, 29871, 29945, 6576, 29889, 2, 29871, 13, 29966, 29989, 465, 22137, 29989, 29958, 13, 18498, 29872, 29892, 306, 29915, 29881, 367, 9796, 304, 5649, 920, 263, 15662, 4094, 7013, 26062, 1736, 297, 5320, 6576], 'total_duration': 8129087800, 'load_duration': 6052796900, 'prompt_eval_count': 48, 'prompt_eval_duration': 1326114000, 'eval_count': 20, 'eval_duration': 721249000}
+
+
+
+---------------------------------------
+
+What exactly is Ollama doing, and what exactly is the LLM doing?
