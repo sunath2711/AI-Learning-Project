@@ -32,8 +32,14 @@ def chat(user_message):
         method="POST"
     )
 
-    with urllib.request.urlopen(request) as response:
-        result = json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request) as response:
+            result = json.loads(response.read().decode("utf-8"))
+
+    except urllib.error.HTTPError as e:
+        print("HTTP Status:", e.code)
+        print("Ollama Error:", e.read().decode("utf-8"))
+        raise
 
     assistant_message = result["message"]["content"]
 
@@ -46,8 +52,12 @@ def chat(user_message):
     return assistant_message
 
 
-print("First response:")
-print(chat("My name is Sunath. Remember my name."))
+while True:
+    user_input = input("\nYou: ")
 
-print("\nSecond response:")
-print(chat("What is my name?"))
+    if user_input.lower() == "exit":
+        break
+
+    response = chat(user_input)
+
+    print("Assistant:", response)
