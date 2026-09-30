@@ -115,3 +115,24 @@ untrusted text
 parse / validate
     ↓
 application data
+
+--------------------------
+30/09/2026
+
+Context saving to keep the convo going 
+One important distinction: the model has learned knowledge in its trained parameters, but that is different from remembering your conversation. Your program must supply conversational context if you want the model to use it reliably.
+
+Also, the context field you inspected earlier is not automatically being carried over in your current code. Each new request starts without that prior conversational context.
+
+So we give our program some memory
+Previously, each request contained only the latest prompt. Now, messages retains the conversation:
+
+Message Role Content
+1 system Instructions
+2 user My name is Sunath…
+3 assistant First response
+4 user What is my name?
+
+When the second request is sent, Python includes all four messages accumulated up to that point, except that the fourth is added immediately before sending.
+
+Important: This is memory implemented by your application, not the model independently remembering you. It exists only while this Python process is running. Restart the program and the list starts fresh.

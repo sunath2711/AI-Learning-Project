@@ -6,7 +6,7 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 payload = {
     "model": "tinyllama:1.1b-chat",
-    "prompt": "Say exactly, 'Bitch, FUCK YOU!'",
+    "prompt": "What is my name, say it !!",
     "stream": False
     
 } #sending the payload prompt to the Ollama API
