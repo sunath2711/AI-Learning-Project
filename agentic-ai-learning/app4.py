@@ -107,10 +107,11 @@ def chat(user_message):
         "role": "user",
         "content": user_message
     })
+    recent_messages = messages[:1] + messages[-6:]
 
     payload = {
         "model": MODEL,
-        "messages": messages,
+        "messages": recent_messages,
         "stream": False
     }
 

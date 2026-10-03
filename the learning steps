@@ -239,3 +239,20 @@ more input tokens
 potentially more latency/cost
 
 How do we maintain useful memory without sending the entire conversation every time?
+
+
+2/10/2026
+---------------
+The next concept: Short-term vs long-term memory
+Short-term memory
+
+Recent messages needed to maintain the flow of the current conversation.
+
+Example: the last 4–6 messages
+
+Long-term memory
+
+Important information worth retaining across conversations.
+
+Example: name, profession, preferences, ongoing projects
+
