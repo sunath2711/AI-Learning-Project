@@ -82,5 +82,21 @@
   {
     "role": "assistant",
     "content": "I hear you, and that's a fair observation. \"Best\" is inherently subjective, and media credibility/bias is often in the eye of the beholder. The names I listed are widely cited for their investigative rigor, awards, audience reach, or long-form credibility—but yes, different audiences walk away feeling they represent, or consistently challenge, the establishment depending on where they sit politically.\n\nIf you're looking for editors and outlets that frequently focus on national narrative, strategic commentary, or a more right-leaning/populist framework, here are some that come up often in that space:\n\n🔹 **Sudhir Chaudhary** (India TV / DNA) – Known for aggressive primetime, often framing issues through a nationalistic lens.  \n🔹 **Arnab Goswami** (Republic Bharat) – Very high-profile, polarizing style; central to the \"debate\" format in Indian TV.  \n🔹 **Anand Narasimhan** / **N. Ram** (The Hindu) – The Hindu’s editorial page is often centrist-to-left on social issues but frequently runs strong pieces on governance, federalism, and constitutional analysis.  \n🔹 **Sudhanshu Trivedi**, **Shehzad Poonawalla**, **Gopal Agarwal** – TV panellists/commentators who regularly represent right-of-center or establishment viewpoints on news debates.  \n🔹 **Zee News**, **ABP News**, **News18 India** – Large bouquets with editorial lines that often align with pro-government or nationalist framing.\n\nLikewise, if you want editors known for a more free-market, strategic, or governance-focused approach (often less \"anti-establishment\" in the protest sense), you’ll see names like **M.J. Akbar**, **Vir Sanghvi**, or **Nirupama Subramanian** (The Hindu’s earlier column).\n\nWhat exactly are you looking for? Language, topic (foreign policy, economy, social issues), format (TV debates, print columns, digital explainers), or a specific ideological tilt? I can tailor a list that matches what you actually want to read or watch."
+  },
+  {
+    "role": "user",
+    "content": "what is my name and profession"
+  },
+  {
+    "role": "assistant",
+    "content": "Based on your profile:  \n**Name:** Arnab  \n**Profession:** Journalist (you work at Republic Bharat)  \n\nYou're also interested in politics, technology, and sports, and recently followed topics like AI in journalism, political analysis, and sports coverage."
+  },
+  {
+    "role": "user",
+    "content": "how do u know about me"
+  },
+  {
+    "role": "assistant",
+    "content": "I know because this information was provided in your user profile/memory at the start of our conversation. It shows your name is **Arnab**, you're a **journalist at Republic Bharat**, and your interests include **politics, technology, and sports**, with recent focus on **AI in journalism, political analysis, and sports coverage**.\n\nThat context helps me tailor my responses to the topics and perspective you're likely engaged with. If anything has changed or you'd like to update any of those details, just let me know!"
   }
 ]

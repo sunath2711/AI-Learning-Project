@@ -77,13 +77,16 @@ if not API_KEY:
 #     print("Assistant:", response)
 
 MEMORY_FILE = "memory.json"
-
+USER_MEMORY_FILE = "user_memory.json"
 
 # Load previous conversation if it exists
 if os.path.exists(MEMORY_FILE):
 
     with open(MEMORY_FILE, "r", encoding="utf-8") as f:
         messages = json.load(f)
+
+    with open(USER_MEMORY_FILE, "r", encoding="utf-8") as f:
+        user_memory = json.load(f)
 
 else:
 
@@ -108,6 +111,12 @@ def chat(user_message):
         "content": user_message
     })
     recent_messages = messages[:1] + messages[-6:]
+    memory_message = {
+    "role": "system",
+    "content": f"Long-term user memory: {json.dumps(user_memory)}"
+}
+
+    recent_messages = [recent_messages[0], memory_message] + recent_messages[1:]
 
     payload = {
         "model": MODEL,
@@ -137,7 +146,11 @@ def chat(user_message):
         print("HTTP Status:", e.code)
         print("OpenRouter Error:", e.read().decode("utf-8"))
         raise
-    print("Token usage:", result.get("usage"))   
+    print("Token usage:", result.get("usage"))
+    if "choices" not in result:
+        print("Unexpected API response:")
+        print(json.dumps(result, indent=2))
+        raise RuntimeError("OpenRouter did not return a normal completion response.")
     assistant_message = result["choices"][0]["message"]["content"]
 
     messages.append({

@@ -256,3 +256,103 @@ Important information worth retaining across conversations.
 
 Example: name, profession, preferences, ongoing projects
 
+2. The surprising part: reasoning tokens
+
+Look at this field from your second request:
+
+'completion_tokens_details': {
+    'reasoning_tokens': 625,
+    ...
+}
+
+Your request reports:
+
+661 completion tokens in total
+
+625 reasoning tokens
+
+36 other completion tokens, approximately
+
+The model used a substantial part of its reported output-token budget on reasoning rather than the final answer you saw.
+
+This helps explain why the response can feel slow even when the visible answer is short.
+
+Important: reasoning tokens are not necessarily displayed as text. The API reports them separately as part of completion usage.
+
+Your input grew from 1,853 to 1,884 tokens between these requests. That's only 31 additional tokens.
+
+Why? Because you already had a fairly large conversation saved in memory.json before starting this session. The new messages added relatively little compared with the existing history.
+
+The bigger issue is that every request continues to carry that existing history.
+
+And there is a second issue: the model may generate hundreds of reasoning tokens to answer a simple question.
+
+These are two separate optimization opportunities:
+
+Problem Potential solution
+Too much history sent to the model | Limit the active conversation context
+Too many output/reasoning tokens  | Use a model/configuration suited to the task
+
+
+------
+3/10/2026
+A conversation can contain thousands of messages, while long-term memory should contain only information worth retaining.
+Our current architecture is:
+
+                 ┌── memory.json
+                 │   recent conversation
+                 │
+User → Python ───┤
+                 │
+                 └── user_memory.json
+                     known facts
+                         ↓
+                       LLM
+
+We now have two memory sources working.
+
+But our long-term memory is still just a dumb JSON file.
+
+The next logical step is to make the model/application distinguish:
+
+"What is actually stored?"
+
+from
+
+"What might I infer?"
+
+And then we'll eventually tackle automatic memory extraction rather than manually maintaining user_memory.json.
+
+Step 5: Automatic Long-Term Memory
+
+Instead, we'll start with a simple pattern:
+
+Conversation
+     ↓
+Ask LLM:
+"Did the user provide any
+new persistent information?"
+     ↓
+Extract structured facts
+     ↓
+Python validates result
+     ↓
+Update user_memory.json
+
+This introduces a very important Agentic AI concept:
+
+The LLM proposes an action/data change; Python controls whether that change actually happens.
+
+The LLM doesn't directly get permission to modify your filesystem.
+
+
+
+The important principle is:
+
+The LLM proposes memory. Python decides whether that memory is acceptable.
+
+First time automatic persistent memory : 
+
+Important: this is our first version of automatic persistent memory. It has one limitation we'll address next: it replaces the entire memory file rather than intelligently updating existing memory.
+
+Now we need to fix the limitation I mentioned: currently every extraction overwrites user_memory.json.
