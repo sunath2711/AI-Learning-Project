@@ -356,3 +356,96 @@ First time automatic persistent memory :
 Important: this is our first version of automatic persistent memory. It has one limitation we'll address next: it replaces the entire memory file rather than intelligently updating existing memory.
 
 Now we need to fix the limitation I mentioned: currently every extraction overwrites user_memory.json.
+
+
+-------------------- 4/10/2026
+
+Conversation
+     ↓
+LLM memory extraction
+     ↓
+Structured JSON
+     ↓
+Python validation
+     ↓
+Merge with existing memory
+     ↓
+user_memory.json
+
+And we've tested the important cases:
+
+✅ Explicit facts → extracted
+✅ New interests → extracted
+✅ Information about other people → ignored
+✅ Temporary information → ignored
+✅ Inferred information → ignored
+✅ Invalid JSON/types → rejected by Python
+✅ Existing memory → preserved
+✅ New interests → merged without replacing old ones
+
+
+                    ┌──────────────────┐
+                    │    User input    │
+                    └────────┬─────────┘
+                             ↓
+                    ┌──────────────────┐
+                    │   app5.py        │
+                    └────────┬─────────┘
+                             ↓
+              ┌──────────────┴──────────────┐
+              ↓                             ↓
+     Short-term memory              Long-term memory
+       last 6 messages              user_memory.json
+              │                             │
+              └──────────────┬──────────────┘
+                             ↓
+                         LLM
+                             ↓
+                         Response
+                             ↓
+                  Memory extraction LLM
+                             ↓
+                      JSON validation
+                             ↓
+                         Merge logic
+                             ↓
+                    user_memory.json
+
+
+And you've demonstrated the key properties:
+
+Conversation memory → memory.json
+Long-term user memory → user_memory.json
+Automatic extraction → LLM
+Validation → Python
+Deduplication/merge → Python
+Persistence across restarts → JSON files
+Other people's information filtered out
+Relevant new interests automatically added
+Old memories preserved
+
+The important Agentic AI principle you've just implemented is:
+
+LLM proposes an action/data → deterministic code validates and executes it.
+
+
+Milestone 2 final architecture
+                ┌───────────────┐
+User ──────────→│   app4.py     │
+                └───────┬───────┘
+                        ↓
+                Recent context
+                   +
+                Long-term memory
+                        ↓
+                      LLM
+                        ↓
+                  Chat response
+                        ↓
+                Memory extractor
+                        ↓
+                 JSON validation
+                        ↓
+                    Merge
+                        ↓
+                user_memory.json
