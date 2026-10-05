@@ -449,3 +449,676 @@ User ──────────→│   app4.py     │
                     Merge
                         ↓
                 user_memory.json
+
+
+                And this is actually a good lesson: optimization isn't automatically improvement if it makes the architecture more brittle.
+
+
+----------------------------------
+5/10/2026
+
+Until now:
+User → LLM → Answer
+
+We want:
+
+User
+ ↓
+LLM
+ ↓
+"I need to use a tool"
+ ↓
+Python
+ ↓
+Tool executes
+ ↓
+Result
+ ↓
+LLM
+ ↓
+Final answer
+
+we're going to build this without LangChain first.
+
+Imagine a caluclate funciton in python :
+def calculate(a,b):
+    return a+b 
+
+tjis in itself is a tool
+
+but the LLM needs to know what it does and how and when it cal it 
+How does the LLM know this function exists?
+
+And:
+
+How does the LLM tell Python that it wants to use it?
+
+That's what tool calling solves.
+
+
+Tool name:
+calculate
+
+Description:
+Add two numbers.
+
+Arguments:
+a → number
+b → number
+
+The LLM can then decide:
+
+"I should use calculate."
+
+But here's the critical distinction:
+
+The LLM does NOT execute Python.
+
+It produces a structured tool call request.
+
+
+
+
+python new_app1.py 
+{
+  "id": "gen-1791208069-ywdw4298Ww6A1SThxyaI",
+  "object": "chat.completion",
+  "created": 1791208069,
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "provider": "Nvidia",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "tool_calls",
+      "native_finish_reason": "tool_calls",
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "refusal": null,
+        "reasoning": "User wants to add 25 and 17. Must use calculate function. Provide result.",
+        "tool_calls": [
+          {
+            "type": "function",
+            "index": 0,
+            "id": "call-b8a78e63-c5f5-4d25-96a5-d22e526515bf",
+            "function": {
+              "name": "calculate",
+              "arguments": "{\"a\":25,\"b\":17}"
+            }
+          }
+        ],
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "User wants to add 25 and 17. Must use calculate function. Provide result.",
+            "format": "unknown",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 315,
+    "completion_tokens": 55,
+    "total_tokens": 370,
+    "cost": 0,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0,
+      "upstream_inference_prompt_cost": 0,
+      "upstream_inference_completions_cost": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 19,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}
+(.venv) 
+
+tool_calls is the model saying: "I want you to execute this"
+
+
+      YOU
+                   │
+                   │ define available tools
+                   ▼
+              ┌──────────┐
+              │   LLM    │
+              └────┬─────┘
+                   │
+             decides what
+             should happen
+                   │
+          ┌────────┴────────┐
+          │                 │
+       use tool          no tool
+          │                 │
+          ▼                 ▼
+   tool_calls JSON       normal answer
+          │
+          ▼
+       PYTHON
+          │
+     executes tool
+          │
+          ▼
+       result
+
+There is one particularly interesting thing here:
+
+You only gave the model an ADD tool, but the user asked for DIVISION + ADD. The model performed the division itself and used the tool only for the addition.
+
+We need to compute 100 divided by 25 = 4.
+Then add 1000 => 1004.
+However must use the tools.
+There's only a calculate tool that adds two numbers.
+No division tool.
+We can maybe use calculate to add 1000 to the result of division,
+but we need division result.
+We could compute division manually: 100/25 = 4.
+Then use calculate with a=4, b=1000 to get 1004.
+
+
+ python new_app1.py 
+
+========== LLM REQUEST 1 ==========
+{
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you add 25  and 17?"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "calculate",
+        "description": "Add two numbers together.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "number",
+              "description": "First number"
+            },
+            "b": {
+              "type": "number",
+              "description": "Second number"
+            }
+          },
+          "required": [
+            "a",
+            "b"
+          ]
+        }
+      }
+    }
+  ],
+  "stream": false
+}
+
+========== LLM RESPONSE 1 ==========
+{
+  "id": "gen-1791216304-Xxbv1Uiq0P7dV6pmwBEF",
+  "object": "chat.completion",
+  "created": 1791216304,
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "provider": "Nvidia",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "tool_calls",
+      "native_finish_reason": "tool_calls",
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "refusal": null,
+        "reasoning": "The user asks: \"Can you add 25 and 17?\" We have a function calculate that adds two numbers. So we need to call calculate with a=25, b=17. Use the tool.",
+        "tool_calls": [
+          {
+            "type": "function",
+            "index": 0,
+            "id": "call-60a8c66e-79dd-438d-9d69-dfaab56da5fd",
+            "function": {
+              "name": "calculate",
+              "arguments": "{\"b\":17,\"a\":25}"
+            }
+          }
+        ],
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "The user asks: \"Can you add 25 and 17?\" We have a function calculate that adds two numbers. So we need to call calculate with a=25, b=17. Use the tool.",
+            "format": "unknown",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 315,
+    "completion_tokens": 82,
+    "total_tokens": 397,
+    "cost": 0,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0,
+      "upstream_inference_prompt_cost": 0,
+      "upstream_inference_completions_cost": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 38,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}
+
+========== TOKEN USAGE 1 ==========
+Prompt tokens: 315
+Completion tokens: 82
+Total tokens: 397
+LLM selected tool: calculate
+Arguments: {'b': 17, 'a': 25}
+Tool result: 42
+
+========== LLM REQUEST 2 ==========
+{
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you add 25  and 17?"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "refusal": null,
+      "reasoning": "The user asks: \"Can you add 25 and 17?\" We have a function calculate that adds two numbers. So we need to call calculate with a=25, b=17. Use the tool.",
+      "tool_calls": [
+        {
+          "type": "function",
+          "index": 0,
+          "id": "call-60a8c66e-79dd-438d-9d69-dfaab56da5fd",
+          "function": {
+            "name": "calculate",
+            "arguments": "{\"b\":17,\"a\":25}"
+          }
+        }
+      ],
+      "reasoning_details": [
+        {
+          "type": "reasoning.text",
+          "text": "The user asks: \"Can you add 25 and 17?\" We have a function calculate that adds two numbers. So we need to call calculate with a=25, b=17. Use the tool.",
+          "format": "unknown",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call-60a8c66e-79dd-438d-9d69-dfaab56da5fd",
+      "content": "42"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "calculate",
+        "description": "Add two numbers together.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "number",
+              "description": "First number"
+            },
+            "b": {
+              "type": "number",
+              "description": "Second number"
+            }
+          },
+          "required": [
+            "a",
+            "b"
+          ]
+        }
+      }
+    }
+  ],
+  "stream": false
+}
+
+========== LLM RESPONSE 2 ==========
+{
+  "id": "gen-1791216307-HgUgRmDzL6QqpJFXsCLk",
+  "object": "chat.completion",
+  "created": 1791216307,
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "provider": "Nvidia",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "native_finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Yes, 25\u202f+\u202f17\u202f=\u202f42.",
+        "refusal": null,
+        "reasoning": "The function returned 42. So answer: 25+17 = 42.",
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "The function returned 42. So answer: 25+17 = 42.",
+            "format": "unknown",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 416,
+    "completion_tokens": 39,
+    "total_tokens": 455,
+    "cost": 0,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0,
+      "upstream_inference_prompt_cost": 0,
+      "upstream_inference_completions_cost": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 12,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}
+
+========== TOKEN USAGE 2 ==========
+Prompt tokens: 416
+Completion tokens: 39
+Total tokens: 455
+Final answer: Yes, 25 + 17 = 42.
+(.venv) 
+skhad@DESKTOP-GIJB0HF MINGW64 /e/The AI learning project/agentic-ai-learning (main)
+$ python new_app1.py 
+
+========== LLM REQUEST 1 ==========
+{
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you divide 100 and 25 and then add 1000 to it?"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "calculate",
+        "description": "Add two numbers together.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "number",
+              "description": "First number"
+            },
+            "b": {
+              "type": "number",
+              "description": "Second number"
+            }
+          },
+          "required": [
+            "a",
+            "b"
+          ]
+        }
+      }
+    }
+  ],
+  "stream": false
+}
+
+========== LLM RESPONSE 1 ==========
+{
+  "id": "gen-1791216432-E6srGDQt19icGDGcKglS",
+  "object": "chat.completion",
+  "created": 1791216432,
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "provider": "Nvidia",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "tool_calls",
+      "native_finish_reason": "tool_calls",
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "refusal": null,
+        "reasoning": "We need to compute 100 divided by 25 = 4. Then add 1000 => 1004. However must use the tools. There's only a calculate tool that adds two numbers. No division tool. We can maybe use calculate to add 1000 to the result of division, but we need division result. We could compute division manually: 100/25 = 4. Then use calculate with a=4, b=1000 to get 1004. That's okay. We need to call calculate.",
+        "tool_calls": [
+          {
+            "type": "function",
+            "index": 0,
+            "id": "call-78df1fea-1ae5-4123-abb3-fc6dac22e0cb",
+            "function": {
+              "name": "calculate",
+              "arguments": "{\"b\":1000,\"a\":4}"
+            }
+          }
+        ],
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "We need to compute 100 divided by 25 = 4. Then add 1000 => 1004. However must use the tools. There's only a calculate tool that adds two numbers. No division tool. We can maybe use calculate to add 1000 to the result of division, but we need division result. We could compute division manually: 100/25 = 4. Then use calculate with a=4, b=1000 to get 1004. That's okay. We need to call calculate.",
+            "format": "unknown",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 325,
+    "completion_tokens": 161,
+    "total_tokens": 486,
+    "cost": 0,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0,
+      "upstream_inference_prompt_cost": 0,
+      "upstream_inference_completions_cost": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 99,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}
+
+========== TOKEN USAGE 1 ==========
+Prompt tokens: 325
+Completion tokens: 161
+Total tokens: 486
+LLM selected tool: calculate
+Arguments: {'b': 1000, 'a': 4}
+Tool result: 1004
+
+========== LLM REQUEST 2 ==========
+{
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you divide 100 and 25 and then add 1000 to it?"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "refusal": null,
+      "reasoning": "We need to compute 100 divided by 25 = 4. Then add 1000 => 1004. However must use the tools. There's only a calculate tool that adds two numbers. No division tool. We can maybe use calculate to add 1000 to the result of division, but we need division result. We could compute division manually: 100/25 = 4. Then use calculate with a=4, b=1000 to get 1004. That's okay. We need to call calculate.",
+      "tool_calls": [
+        {
+          "type": "function",
+          "index": 0,
+          "id": "call-78df1fea-1ae5-4123-abb3-fc6dac22e0cb",
+          "function": {
+            "name": "calculate",
+            "arguments": "{\"b\":1000,\"a\":4}"
+          }
+        }
+      ],
+      "reasoning_details": [
+        {
+          "type": "reasoning.text",
+          "text": "We need to compute 100 divided by 25 = 4. Then add 1000 => 1004. However must use the tools. There's only a calculate tool that adds two numbers. No division tool. We can maybe use calculate to add 1000 to the result of division, but we need division result. We could compute division manually: 100/25 = 4. Then use calculate with a=4, b=1000 to get 1004. That's okay. We need to call calculate.",
+          "format": "unknown",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call-78df1fea-1ae5-4123-abb3-fc6dac22e0cb",
+      "content": "1004"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "calculate",
+        "description": "Add two numbers together.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "number",
+              "description": "First number"
+            },
+            "b": {
+              "type": "number",
+              "description": "Second number"
+            }
+          },
+          "required": [
+            "a",
+            "b"
+          ]
+        }
+      }
+    }
+  ],
+  "stream": false
+}
+
+========== LLM RESPONSE 2 ==========
+{
+  "id": "gen-1791216459-MEBXrBqOPVXzYnm1vcHk",
+  "object": "chat.completion",
+  "created": 1791216459,
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "provider": "Nvidia",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "native_finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "The division\u202f\\(100 \\div 25\\)\u202fequals\u202f4. Adding\u202f1000\u202fto that gives\u202f**1004**.",
+        "refusal": null,
+        "reasoning": "We have result. Need answer.",
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "We have result. Need answer.",
+            "format": "unknown",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 507,
+    "completion_tokens": 44,
+    "total_tokens": 551,
+    "cost": 0,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0,
+      "upstream_inference_prompt_cost": 0,
+      "upstream_inference_completions_cost": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 7,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}
+
+========== TOKEN USAGE 2 ==========
+Prompt tokens: 507
+Completion tokens: 44
+Total tokens: 551
+Final answer: The division \(100 \div 25\) equals 4. Adding 1000 to that gives **1004**.
+(.venv) 
