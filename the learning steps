@@ -1122,3 +1122,434 @@ Completion tokens: 44
 Total tokens: 551
 Final answer: The division \(100 \div 25\) equals 4. Adding 1000 to that gives **1004**.
 (.venv) 
+
+
+   USER
+                  │
+                  ▼
+        "100 / 25 + 1000"
+                  │
+                  ▼
+                LLM
+                  │
+        ┌─────────┴─────────┐
+        │                   │
+    Can solve              Has tool
+    division itself        for addition
+        │                   │
+        │                   ▼
+        │             calculate(4,1000)
+        │                   │
+        │                   ▼
+        │                  1004
+        │                   │
+        └─────────┬─────────┘
+                  ▼
+                LLM
+                  │
+                  ▼
+            Final answer
+
+┌─────────────────────────────────────┐
+│ Python                              │
+│                                     │
+│ def divide(a,b):                    │
+│     return a/b                      │
+│                                     │
+│ Actual capability / execution      │
+└──────────────────┬──────────────────┘
+                   │
+                   │ tool schema
+                   ▼
+┌─────────────────────────────────────┐
+│ LLM                                 │
+│                                     │
+│ divide                              │
+│ "Divide first number by second"    │
+│ a: number                           │
+│ b: number                           │
+│                                     │
+│ Decision: use divide                │
+└─────────────────────────────────────┘
+
+
+Tool schema = what the LLM knows it can request.
+Python function = what your application can actually execute.
+
+
+
+Every additional agent/tool/history that we blindly include can increase the context sent to the model.
+
+That's why later we'll care about things like:
+
+which tools are exposed
+which agent receives which context
+short-term vs long-term memory
+summarization
+routing
+passing only relevant information
+
+
+LLM → tool selection → argument generation → Python execution → tool result → LLM → final response
+
+That's the core tool-calling mechanism underneath many agent frameworks.
+
+
+Before:
+
+tools list ──────────→ LLM
+if/elif ─────────────→ Python
+
+Now:
+
+                 tool_definitions
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+      LLM tool schema       Python registry
+             │                   │
+             ▼                   ▼
+           LLM              actual function
+
+
+Our current program assumes:
+
+Request 1
+   ↓
+tool
+   ↓
+Request 2
+   ↓
+final answer
+
+
+But that's not how agents actually work.
+
+The real structure is:
+
+             ┌──────────────────────┐
+             │                      │
+             ▼                      │
+User → LLM → Tool → Result → LLM ──┤
+                  ↑                 │
+                  │                 │
+                  └─────────────────┘
+                                    │
+                              final answer
+
+The LLM can say:
+
+I need tool #1
+
+Then after getting the result:
+
+I need tool #2
+
+Then:
+
+I need tool #3
+
+Then finally:
+
+I'm done.
+
+There is no fixed number of LLM requests.
+
+
+User
+ │
+ ▼
+LLM
+ │
+ │ divide(64,4)
+ ▼
+Python
+ │
+ │ 16
+ ▼
+LLM
+ │
+ │ multiply manually: 16×68 = 1088
+ │
+ │ divide(1088,2)
+ ▼
+Python
+ │
+ │ 544
+ ▼
+LLM
+ │
+ │ 544 > 100
+ │
+ │ calculate(544,240)
+ ▼
+Python
+ │
+ │ 784
+ ▼
+LLM
+ │
+ ▼
+Final answer
+
+That's potentially 3 tool calls + 4 LLM calls.
+
+Our current code only supports:
+
+LLM → tool → LLM
+
+We need to turn that into:
+
+LLM → tool → LLM → tool → LLM → tool → LLM → DONE
+
+
+beginning of our actual Agent Loop.
+
+That's why tool_calls being an array is important, but also why we need a loop around the whole process.
+
+
+Previously your program effectively had:
+
+Request 1
+   ↓
+Tool
+   ↓
+Request 2
+   ↓
+Assume final answer
+
+Now it has:
+
+while True:
+
+    Ask LLM
+
+    if tool_calls:
+        execute tools
+        continue
+
+    if stop:
+        final answer
+        break
+
+Your tools are stored as a list because the API expects a collection of available tools.
+Think of it as the toolbox you hand to the LLM:
+
+tools
+│
+├── calculate
+│
+└── divide
+
+The LLM receives the entire list and can choose from it.
+
+Your Python program
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+        tool_definitions            tool_registry
+              │                         │
+       "What can LLM see?"        "What can Python execute?"
+              │                         │
+              ▼                         ▼
+            tools                  Python functions
+              │
+              ▼
+        Sent to OpenRouter
+tools list
+
+This is the description of capabilities given to the LLM.
+
+For example:
+
+tools = [
+    calculate_description,
+    divide_description
+]
+
+The model sees:
+
+I have a tool called calculate that adds two numbers.
+
+I have a tool called divide that divides two numbers.
+
+It does not see your actual Python functions.
+
+tool_registry dictionary
+
+This is for your Python code:
+
+tool_registry = {
+    "calculate": calculate,
+    "divide": divide
+}
+
+If the LLM sends:
+
+{
+  "name": "divide",
+  "arguments": {
+    "a": 100,
+    "b": 25
+  }
+}
+
+your code does:
+
+tool_function = tool_registry["divide"]
+
+and gets the actual Python function:
+
+divide
+
+Then:
+
+tool_function(a=100, b=25)
+
+returns:
+
+4
+One more important point
+
+The list isn't what makes the LLM choose a tool.
+
+It's simply the API representation of:
+
+"Here are all the tools you are allowed to request."
+
+The model makes the choice based on the user's request and the tool descriptions/schema.
+
+So:
+
+tools = [calculate, divide, ...]
+             ↓
+        LLM sees them
+             ↓
+     chooses "divide"
+             ↓
+Python uses tool_registry
+             ↓
+     actual divide()
+
+That's why we maintain both.
+
+And this separation becomes very important when we later build a proper agent/tool architecture.
+
+
+The model decides when it has finished generating its response.
+
+The API reports that decision through:
+
+finish_reason
+
+For your model, you saw two important values:
+
+tool_calls
+
+Means:
+
+"I'm not finished. I want my application to execute one or more tools and give me their results."
+
+So your Python code does:
+
+if finish_reason == "tool_calls":
+    execute_tool()
+    continue
+
+And sends the conversation back to the LLM.
+
+stop
+
+Means:
+
+"I'm finished generating this turn. I don't need another tool call."
+
+So your application does:
+
+elif finish_reason == "stop":
+    final_answer = message["content"]
+    break
+
+The break is your program's decision to end the agent loop because the model indicated it was done.
+
+But how does the LLM know it's done?
+
+This is the really important part.
+
+The model is generating an output based on the conversation it currently sees.
+
+At the final stage, it sees something conceptually like:
+
+User:
+Calculate ...
+
+Assistant:
+I need divide(64, 4)
+
+Tool:
+16
+
+Assistant:
+I need divide(1088, 2)
+
+Tool:
+544
+
+Assistant:
+I need calculate(544, 240)
+
+Tool:
+784
+
+Now the model evaluates the current state and generates its next output.
+
+It could generate a normal answer:
+
+The final result is 784.
+
+That is a normal assistant response, so the API returns:
+
+finish_reason = stop
+
+Or, if it determines another tool is required, it generates another structured tool call:
+
+tool_calls = [...]
+
+and your loop continues.
+
+So the decision is roughly:
+              LLM receives current context
+                         │
+                         ▼
+                What should I do next?
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+        Need a tool?             Done?
+              │                     │
+             YES                   YES
+              │                     │
+              ▼                     ▼
+        tool_calls                stop
+              │                     │
+              ▼                     ▼
+       Python executes         final response
+              │
+              ▼
+       result goes to LLM
+              │
+              └──────→ repeat
+One subtle but VERY important correction
+
+You said:
+
+"LLM makes a plan"
+
+I'd phrase it as:
+
+The LLM decides what to do next based on the current request, available tools, and previous tool results.
+
+
+That's why this is called an agent loop.
+
+The model repeatedly observes the updated state and chooses the next action.

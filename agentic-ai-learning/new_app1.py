@@ -21,7 +21,8 @@ if not API_KEY:
 def calculate(a, b):
     return a + b
 
-
+def divide(a, b):
+    return a / b
 # -----------------------------
 # Tool description for the LLM
 # -----------------------------
@@ -48,6 +49,28 @@ tools = [
             }
         }
     }
+    ,
+    {
+    "type": "function",
+    "function": {
+        "name": "divide",
+        "description": "Divide the first number by the second number.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "a": {
+                    "type": "number",
+                    "description": "Number to be divided"
+                },
+                "b": {
+                    "type": "number",
+                    "description": "Number to divide by"
+                }
+            },
+            "required": ["a", "b"]
+        }
+    }
+}
 ]
 
 
@@ -62,13 +85,18 @@ tools = [
 #     }
 # ]
 
+# messages = [
+#     {
+#         "role": "user",
+#         "content": "Can you divide 100 and 25 and then add 1000 to it?"
+#     }
+# ]
 messages = [
     {
         "role": "user",
-        "content": "Can you divide 100 and 25 and then add 1000 to it?"
+        "content": "I want to perform a division on 2 binary numbers 100000000 and 1000?"
     }
 ]
-
 
 payload = {
     "model": MODEL,
@@ -123,53 +151,57 @@ if tool_calls:
 
     if function_name == "calculate":
         tool_result = calculate(**arguments)
+    elif function_name == "divide":
+        tool_result = divide(**arguments)
+    else:
+        raise ValueError(f"Unknown tool: {function_name}")
 
-        print("Tool result:", tool_result)
+    print("Tool result:", tool_result)
 
-        messages.append(message)
+    messages.append(message)
 
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tool_call["id"],
-            "content": str(tool_result)
-        })
+    messages.append({
+        "role": "tool",
+        "tool_call_id": tool_call["id"],
+        "content": str(tool_result)
+    })
 
-        payload = {
-    "model": MODEL,
-    "messages": messages,
-    "tools": tools,
-    "stream": False
-        }
+    payload = {
+        "model": MODEL,
+        "messages": messages,
+        "tools": tools,
+        "stream": False
+    }
 
-        data = json.dumps(payload).encode("utf-8")
+    data = json.dumps(payload).encode("utf-8")
 
-        request = urllib.request.Request(
-            URL,
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {API_KEY}"
-            },
-            method="POST"
+    request = urllib.request.Request(
+        URL,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        },
+        method="POST"
+    )
+
+    print("\n========== LLM REQUEST 2 ==========")
+    print(json.dumps(payload, indent=2))
+    with urllib.request.urlopen(request) as response:
+        final_result = json.loads(
+            response.read().decode("utf-8")
         )
 
-        print("\n========== LLM REQUEST 2 ==========")
-        print(json.dumps(payload, indent=2))
-        with urllib.request.urlopen(request) as response:
-            final_result = json.loads(
-                response.read().decode("utf-8")
-            )
+    final_answer = final_result["choices"][0]["message"]["content"]
 
-        final_answer = final_result["choices"][0]["message"]["content"]
+    print("\n========== LLM RESPONSE 2 ==========")
+    print(json.dumps(final_result, indent=2))
 
-        print("\n========== LLM RESPONSE 2 ==========")
-        print(json.dumps(final_result, indent=2))
+    usage = final_result.get("usage", {})
 
-        usage = final_result.get("usage", {})
+    print("\n========== TOKEN USAGE 2 ==========")
+    print("Prompt tokens:", usage.get("prompt_tokens"))
+    print("Completion tokens:", usage.get("completion_tokens"))
+    print("Total tokens:", usage.get("total_tokens"))
 
-        print("\n========== TOKEN USAGE 2 ==========")
-        print("Prompt tokens:", usage.get("prompt_tokens"))
-        print("Completion tokens:", usage.get("completion_tokens"))
-        print("Total tokens:", usage.get("total_tokens"))
-
-        print("Final answer:", final_answer)
+    print("Final answer:", final_answer)
