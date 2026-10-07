@@ -1553,3 +1553,104 @@ The LLM decides what to do next based on the current request, available tools, a
 That's why this is called an agent loop.
 
 The model repeatedly observes the updated state and chooses the next action.
+
+
+7/10/2026
+
+ ┌───────────────┐
+                 │      LLM      │
+                 └───────┬───────┘
+                         │
+                  tool_calls?
+                    /         \
+                  yes          no
+                   │            │
+                   ▼            ▼
+                 Tool          stop
+                   │            │
+                   ▼            ▼
+               result        Final answer
+                   │
+                   └──────► LLM
+                              │
+                              ▼
+                       iteration + 1
+                              │
+                       max reached?
+                         /       \
+                       no         yes
+                       │           │
+                     loop       terminate
+
+Never trust the LLM's tool call blindly. Validate it before executing Python code.
+
+Your flow currently is:
+
+LLM
+ ↓
+tool name + arguments
+ ↓
+tool registry
+ ↓
+Python function
+
+We want:
+
+LLM
+ ↓
+tool name + arguments
+ ↓
+VALIDATE
+ ├── invalid → error returned to LLM
+ └── valid
+       ↓
+    execute
+       ↓
+    result
+
+
+So your Milestone 3 architecture is now:
+
+                         USER
+                           │
+                           ▼
+                    ┌─────────────┐
+                    │     LLM     │
+                    └──────┬──────┘
+                           │
+                    tool_calls / stop
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+         tool_calls                    stop
+              │                         │
+              ▼                         ▼
+       Validate request           Final answer
+              │
+       ┌──────┴──────┐
+       │             │
+    invalid         valid
+       │             │
+       ▼             ▼
+   error → LLM    Registry
+                     │
+                     ▼
+                Python Tool
+                     │
+              ┌──────┴──────┐
+              │             │
+           success        error
+              │             │
+              └──────┬──────┘
+                     ▼
+                Tool Result
+                     │
+                     ▼
+                    LLM
+                     │
+                     └──────► loop
+
+
+Milestone 3 — Tool Calling & Agent Loop: COMPLETE ✅
+
+The next major milestone should be Milestone 4: turning this into a proper reusable Agent abstraction, rather than adding more random tools. That's where we'll start separating LLM, Tool, Registry, Agent Loop, and Memory into clean components—the same concepts frameworks like LangChain/LangGraph eventually package for you.

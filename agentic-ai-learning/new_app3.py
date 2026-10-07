@@ -3,12 +3,15 @@ import os
 import urllib.request
 
 
+
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "nvidia/nemotron-3.5-lightning:free"
+MAX_ITERATIONS = 10
+iteration = 0
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 
@@ -123,7 +126,8 @@ tool_registry = {
 messages = [
     {
         "role": "user",
-        "content": "I want to do calcualtin -- need to find 2 to the power 6 , then divide it by 4 , the number then multiplies by 68 and then divide that by 2 and if the result is greater than 100 then add 240 to it"
+        #"content": "I want to do calcualtin -- need to find 2 to the power 6 , then divide it by 4 , the number then multiplies by 68 and then divide that by 2 and if the result is greater than 100 then add 240 to it"
+        "content": "I want you to perfrom a subtraction of two prime numbers that lie between 400 and 900 and then multiple that by any perfect number, and then add 190 to it and then give the answer in word , also each step when u asnwer give me your reasoning"
     }
 ]
 
@@ -132,8 +136,9 @@ messages = [
 # LLM REQUEST 1
 # ============================================================
 
-while True:
-
+while iteration < MAX_ITERATIONS:
+    iteration += 1
+    print(f"\n========== AGENT ITERATION {iteration} ==========")
     payload = {
         "model": MODEL,
         "messages": messages,
@@ -184,23 +189,39 @@ while True:
             tool_function = tool_registry.get(function_name)
 
             if tool_function is None:
-                raise ValueError(
-                    f"Unknown tool: {function_name}"
+                tool_content = (
+                    f"Tool execution failed: unknown tool '{function_name}'"
                 )
 
-            tool_result = tool_function(**arguments)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": tool_content
+                })
 
-            print("Tool result:", tool_result)
+                continue
+            try:
+                tool_result = tool_function(**arguments)
+
+                print("Tool result:", tool_result)
+
+                tool_content = str(tool_result)
+
+            except Exception as e:
+                print("Tool error:", str(e))
+
+                tool_content = f"Tool execution failed: {str(e)}"
 
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call["id"],
-                "content": str(tool_result)
+                "content": tool_content
             })
 
         # Go back to the LLM
         continue
 
+    
     # If the model has finished
     elif finish_reason == "stop":
 
@@ -209,3 +230,7 @@ while True:
         print("\nFinal answer:", final_answer)
 
         break
+
+
+if iteration >= MAX_ITERATIONS:
+        print("\nAgent stopped: maximum iterations reached.")
