@@ -1654,3 +1654,436 @@ So your Milestone 3 architecture is now:
 Milestone 3 — Tool Calling & Agent Loop: COMPLETE ✅
 
 The next major milestone should be Milestone 4: turning this into a proper reusable Agent abstraction, rather than adding more random tools. That's where we'll start separating LLM, Tool, Registry, Agent Loop, and Memory into clean components—the same concepts frameworks like LangChain/LangGraph eventually package for you.
+
+
+hese are the points I want you to retain, not just memorize.
+
+1. Separate decision-making from execution.
+
+The model decides what to request. Your application controls what actually executes.
+
+2. Explicitly manage state.
+
+Conversation history, persistent memory and tool results are not magically retained across API requests. Your application manages what is stored and sent.
+
+3. Treat model output as untrusted input.
+
+Tool names, arguments and generated content must be checked before they influence application behavior.
+
+4. Expect failures.
+
+API errors, malformed responses, invalid arguments and tool exceptions need explicit handling.
+
+5. Bound the agent loop.
+
+Use iteration limits, timeouts and appropriate resource limits. A model's decision to continue should not mean the application can run indefinitely.
+
+6. Keep tool metadata and implementations aligned.
+
+The schema the model sees should accurately describe the function Python executes. A mismatch creates errors and unreliable behavior.
+
+
+-------------------
+10Oct 2026
+
+Our first refactor will produce this structure:
+
+Agent loop
+
+Builds payload · Handles tool calls · Manages iterations
+
+call_llm(payload)
+
+Serializes JSON · Sends HTTP request · Parses response
+
+OpenRouter API
+
+Returns the model response
+
+
+-----
+Code
+
+	
+
+Responsibility
+
+call_llm(payload)
+
+	
+
+Accepts the request data prepared by the agent.
+
+json.dumps(payload)
+
+	
+
+Converts the Python dictionary into JSON.
+
+.encode("utf-8")
+
+	
+
+Converts the JSON string into bytes for the HTTP request.
+
+urllib.request.Request(...)
+
+	
+
+Creates the request with the URL, headers and body.
+
+urlopen(request)
+
+	
+
+Sends the request and receives the response.
+
+json.loads(...)
+
+	
+
+Converts the response JSON into a Python dictionary.
+
+return result
+
+	
+
+Gives the parsed response back to the caller.
+
+
+
+Component
+
+	
+
+Its responsibility
+
+
+
+
+call_llm()
+
+	
+
+Sends a request to the LLM and returns its response.
+
+
+
+
+tool_registry
+
+	
+
+Maps a tool name to its Python function.
+
+
+
+
+calculate() / divide()
+
+	
+
+Perform actual computations.
+
+
+
+
+Agent loop
+
+	
+
+Orchestrates the process: call the LLM, execute requested tools, return results, and repeat.
+
+
+Your responsibilities are now more clearly separated:
+
+call_llm(payload) handles API communication.
+
+execute_tool(tool_call) handles one tool execution.
+
+The agent loop handles the sequence of decisions and actions.
+
+The tool definitions are repeated even though they don't change between iterations. The conversation history grows after every tool call.
+
+How your prompt grows
+
+Request 1
+
+User message + tool definitions
+
+Request 2
+
+User message + tool definitions + tool call 1 + result 1
+
+Request 3
+
+User message + tool definitions + previous tool calls and results + new context
+
+This continues until the agent finishes. The exact token count depends on the message contents and provider's token accounting.
+
+3. Can we optimize this?
+
+Yes. There are several approaches, but they solve different problems.
+
+Optimization
+
+	
+
+What it improves
+
+	
+
+Does it reduce billed input tokens automatically?
+
+
+
+
+Remove unused tool definitions
+
+	
+
+Smaller request payload and potentially fewer prompt tokens
+
+	
+
+Yes, if those definitions are no longer sent
+
+
+
+
+Reduce unnecessary conversation history
+
+	
+
+Fewer input tokens
+
+	
+
+Yes
+
+
+
+
+Summarize older interactions
+
+	
+
+Keeps important context while reducing history size
+
+	
+
+Usually
+
+
+
+
+Provider prompt caching
+
+	
+
+May reduce cost and latency for repeated prefixes
+
+	
+
+Depends on provider/model; tokens may still be counted
+
+
+
+
+Use a more efficient tool schema
+
+	
+
+Reduces the tool-definition portion of the prompt
+
+	
+
+Potentially
+
+
+
+
+Execute deterministic sequences in Python
+
+	
+
+Avoids unnecessary LLM round trips
+
+	
+
+Yes, by eliminating requests
+
+----------
+In an agentic application, you should distinguish three things:
+
+Instructions: What the system or developer actually tells the model to do.
+
+Decisions: The tool calls and arguments the model returns.
+
+Explanations: The natural-language text the model generates about its behavior.
+
+
+What does this class do?
+
+add_user_message() records what the user asks.
+
+add_assistant_message() records the assistant's response, including tool-call requests.
+
+add_tool_result() records the result returned by a Python tool.
+
+get_messages() provides the history that will be sent to the LLM.
+
+count_messages() reports the number of stored messages.
+
+
+
+Important
+
+Why do we have both tools and tool_registry?
+
+These two structures solve different problems.
+
+A. tools — the model-facing description
+
+This tells the LLM which functions are available, what they do, and which arguments they accept.
+
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "divide",
+            "description": "Divide a by b",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "a": {"type": "number"},
+                    "b": {"type": "number"}
+                },
+                "required": ["a", "b"]
+            }
+        }
+    }
+]
+
+Purpose: describe capabilities to the model. This is a simplified illustration of the schema, not a replacement for your full existing list.
+
+B. tool_registry — the Python-facing lookup
+
+This maps a tool's name to its real executable Python function.
+
+
+tool_registry = {
+    "calculate": calculate,
+    "divide": divide
+}
+
+Purpose: resolve the model's requested function name into code Python can execute.
+
+Why not send the Python functions themselves to the LLM? A Python function exists in your program's runtime. The API expects a serializable description of the tool, not the actual callable object. Your application bridges the two.
+
+The model can request divide, but it cannot directly execute your local Python function. Your application must receive that request and decide how to handle it.
+
+
+The current design has four important properties:
+
+Separation of concerns: call_llm() handles HTTP, execute_tool() handles tool execution, ConversationMemory handles message storage, and Agent handles orchestration.
+
+Reusable orchestration: you can create an agent and call agent.run() multiple times without rewriting the loop.
+
+Extensible tools: you can add more functions to tool_definitions, expose their schemas through tools, and register their implementations in tool_registry.
+
+Inspectable execution: your logs and counters let you examine model requests, tool calls, token usage, and the accumulated conversation.
+
+There are still limitations. The current memory is not persistent across program restarts. Tool execution needs stronger function-specific argument validation before production use. Also, Agent.run() currently returns None if it reaches its iteration limit or an unexpected finish reason; API/network failures aren't yet handled comprehensively.
+
+
+Our current architecture
+
+User
+
+"Divide 1000 by 0.5 three times"
+
+Your Python program
+
+Explicitly calls agent.run(user_message)
+
+Agent.run()
+
+Sends the task and available tool schemas to the LLM
+
+LLM
+
+Decides whether to answer directly or request a tool
+
+Tool call
+
+Python executes divide()
+
+Final answer
+
+Return to caller
+
+Notice that the decision about which agent to use never happens here. Your code has already instantiated an Agent and invoked its run() method.
+
+The LLM decides which tool to use, not which agent to use.
+
+2. An architecture with multiple agents
+
+Imagine you later build three specialized agents:
+
+CodingAgent — writes and reviews code.
+
+ResearchAgent — researches topics and summarizes evidence.
+
+DevOpsAgent — investigates deployment and infrastructure incidents.
+
+You could introduce a top-level router that decides which agent handles each task.
+
+User
+
+"Investigate why my Kubernetes pod keeps restarting"
+
+Application entry point
+
+Receives the user request
+
+Router / Supervisor
+
+Uses rules or an LLM to select the appropriate agent
+
+CodingAgent
+
+DevOpsAgent
+
+Selected
+
+ResearchAgent
+
+DevOpsAgent.run(task)
+
+Its own LLM calls, tools, and potentially its own conversation memory
+
+Here, the router selects the agent. The selected agent then handles the task, possibly by calling its own LLM and tools.
+
+3. What would the code look like?
+
+A very simple router could use ordinary Python rules:
+
+def route_task(user_message):
+    text = user_message.lower()
+
+    if "pod" in text or "kubernetes" in text:
+        return devops_agent.run(user_message)
+
+    elif "code" in text or "python" in text:
+        return coding_agent.run(user_message)
+
+    else:
+        return research_agent.run(user_message)
+
+Then your application entry point becomes:
+
+answer = route_task(user_message)
+
+This is a basic routing example, not something you need to implement yet. The router could later use an LLM to classify the request instead of relying on keywords.
