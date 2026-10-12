@@ -2087,3 +2087,119 @@ Then your application entry point becomes:
 answer = route_task(user_message)
 
 This is a basic routing example, not something you need to implement yet. The router could later use an LLM to classify the request instead of relying on keywords.
+
+
+
+Perfect. Both memory sources are now working together: the model retrieved Arnab from user_memory.json and 42 from the conversation history.
+
+Let's understand what your execution summary confirms before we move to the next step.
+
+1. Your current memory architecture works
+
+Long-term memory
+
+user_memory.json → name: Arnab
+
+ConversationMemory
+
+Stores the user and assistant messages in RAM
+
+get_context_messages() combines both
+
+LLM request
+
+Receives saved facts and conversation history
+
+
+Metric
+
+	
+
+Result
+
+	
+
+Interpretation
+
+LLM requests
+
+	
+
+2
+
+	
+
+One request per task in this test
+
+Tool calls
+
+	
+
+0
+
+	
+
+Both tasks were answered without tools
+
+Conversation messages
+
+	
+
+4
+
+	
+
+Two user messages and two assistant responses
+
+Total tokens
+
+	
+
+1,533
+
+	
+
+Combined usage across both requests
+
+Before adding automatic memory updates, let's improve one thing: currently, ConversationMemory loads user_memory.json itself. That couples conversation storage to a particular file and memory format.
+
+We'll make the constructor accept optional saved facts instead:
+
+Keep your existing get_context_messages() and other memory methods unchanged.
+
+Why make this change?
+
+load_user_memory() handles file access.
+
+ConversationMemory handles conversation messages and supplied facts.
+
+Agent coordinates the model and tools.
+
+This separation makes it easier to test with different user profiles, supply memory from a database later, or create separate agents with separate conversation histories.
+
+
+Right now, the agent can read saved facts, but it cannot automatically save new ones.
+
+For example, suppose you tell it:
+
+I recently started learning LangGraph, and I want to focus on building production-ready AI agents.
+
+We want a controlled pipeline:
+
+New conversation
+
+User shares a potentially useful fact
+
+Memory extractor
+
+Extracts candidate facts from the conversation
+
+Validation and merge
+
+Rejects invalid data and merges approved facts without duplicates
+
+user_memory.json
+
+Persists the updated facts for future runs
+
+You already built much of this earlier using extract_memory(), validate_memory(), merge_memory(), and save_memory(). We'll reuse those functions instead of rebuilding the extractor.
