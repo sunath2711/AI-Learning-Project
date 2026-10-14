@@ -2203,3 +2203,172 @@ user_memory.json
 Persists the updated facts for future runs
 
 You already built much of this earlier using extract_memory(), validate_memory(), merge_memory(), and save_memory(). We'll reuse those functions instead of rebuilding the extractor.
+
+
+14/10/2026
+The next important concept is making an LLM return predictable, machine-readable data instead of free-form text.
+Take this part of your calculate definition:
+"parameters": {    "type": "object",    "properties": {        "a": {"type": "number"},        "b": {"type": "number"}    },    "required": ["a", "b"]}
+
+
+
+Here's what matters:
+- type: object — arguments should be a JSON object.
+- properties — defines the allowed argument names and their expected types.
+- required — both a and b must be supplied.
+
+
+Add "additionalProperties": False to each tool's parameter schema, at the same level as "properties" and "required":
+"required": ["a", "b"],"additionalProperties": False
+
+
+
+This explicitly tells schema-aware consumers that extra arguments are not allowed. It is a useful schema concept, though it is not a substitute for validating arguments in Python.
+
+Structured outputs vs. tool calling
+
+For now, remember three things:
+1. A schema defines the expected structure.
+2. Structured output makes model responses easier to parse and validate.
+3. Tool calling lets the model request an operation that your application decides whether to execute.
+
+
+MCP 
+
+The main thing to understand is how an agent can discover and use tools hosted by another process through a standard protocol.
+Today, your new_app4.py works roughly like this:
+Your Agent (new_app4.py)
+Sends prompts and tool schemas to the LLM
+
+OpenRouter LLM
+Chooses whether to answer or request a tool
+
+Local Python functions
+calculate() and divide() run inside your application
+
+MCP provides a standard way for an application to discover and invoke tools exposed by an MCP server.
+
+MCP has three important roles:
+- Host: your AI application, including the agent and its interaction with the LLM.
+- Client: the component inside the host that communicates using MCP.
+- Server: the separate process that exposes tools and other capabilities. It does not need to communicate with the LLM directly. 
+
+
+1. What does the SDK actually do?
+Without MCP, you manually define tool schemas, maintain a registry, and write code to invoke the corresponding functions.
+With MCP, the SDK handles the protocol communication and lets you expose tools through a standard interface.
+Your AI Agent
+Your existing new_app4.py + OpenRouter
+
+MCP Client
+Connects to the MCP server and requests available tools
+
+MCP Server
+Built using the MCP SDK; exposes calculate and divide
+
+Python functions
+Perform the actual calculations
+
+Term	Meaning
+MCP	The protocol: the agreed rules for communicating between clients and servers.
+MCP SDK	The Python library that implements those rules for you.
+MCP server	Your program that exposes tools through MCP.
+
+
+You already have a client/server interaction, even though you haven't used MCP yet.
+1. Your Python agent
+Builds a prompt and HTTP request
+
+2. OpenRouter API
+Receives the request and routes it to the selected LLM
+
+3. LLM response
+Returns text or a structured tool-call request
+
+If a tool call is requested, Python executes it locally and sends another request to the LLM.
+
+With MCP, the functions can live in a separate server process. Your agent no longer needs a direct reference to those Python functions. It communicates with an MCP client, which communicates with the server.
+Agent host
+Agent loop + LLM API client
+
+MCP client
+Discovers tools and sends tool-call requests
+
+MCP server process
+Owns and executes the Python functions
+
+MCP uses JSON-RPC as its message format. You don't need to implement JSON-RPC manually; the SDK handles it.
+Here are the three interactions to understand:
+MCP interaction	What it means
+initialize	Establish the MCP session and negotiate supported capabilities.
+tools/list	Client asks the server which tools it exposes.
+tools/call	Client asks the server to execute a specific tool with arguments.
+  
+
+  One subtle point: discovering a tool doesn't mean the LLM automatically sees it. Your host application must obtain the tool definitions from MCP and make them available to the LLM in the format its API expects.
+
+
+
+  Step 2 — Understand the code
+- FastMCP("Calculator") creates the server.
+- @mcp.tool() registers the function as an MCP tool.
+- Type hints such as a: float help the SDK generate input schemas.
+- The docstring describes the tool to clients.
+- mcp.run(transport="stdio") starts the server using standard input/output for MCP communication.
+Notice what's missing: there's no OpenRouter API key, no LLM call, no tool_registry, and no agent loop. This server is responsible only for exposing tools.
+
+
+
+MCP Inspector is a developer testing interface for MCP servers. Think of it as Postman for MCP: instead of manually writing a client to send MCP requests, you can connect to a server, discover its capabilities, and test them through a UI.
+
+MCP Inspector — browser UI
+You inspect and test the server
+
+Inspector backend / MCP client
+Sends protocol requests to your server
+
+Your mcp_server.py process
+Exposes calculate and divide
+
+These are three different capabilities an MCP server can expose.
+
+Tools — actions the application can execute
+Your server exposes calculate(a, b) and divide(a, b). A client can discover these tools and request their execution.
+Examples: search train availability, query a database, create a support ticket, calculate a value.
+Your server has these
+
+
+
+
+Resources — data the application can read
+These expose information through resource identifiers, often URI-like addresses.
+Examples: a project configuration file, documentation, a database record, or a service status report.
+Resources are primarily for providing context or data; they aren't the same as invoking an action.
+
+
+
+
+Prompts — reusable interaction templates
+These let a server provide predefined prompt templates that a client can retrieve and present or use in a conversation.
+Examples: “Summarize this repository,” “Investigate this incident,” or “Explain this configuration.”
+
+
+
+An important distinction
+MCP defines these capabilities, but your server only exposes the ones you implement.
+Your current mcp_server.py uses @mcp.tool() for two functions. It doesn't define any resources or prompts, so those sections may be empty. That's expected.
+Also, MCP does not require every AI application to use resources and prompts. An application can use only tools if that's all it needs.
+
+Notice that no LLM is required for this test. You selected the tool yourself in Inspector. Later, your agent's LLM will decide which tool to request, while your MCP client handles the communication with the server.
+
+There are now two different communication paths:
+- Agent host ↔ LLM: HTTP API requests through OpenRouter.
+- MCP client ↔ MCP server: MCP protocol messages, using stdio for our local setup.
+The LLM doesn't need to know whether divide is a local function or a remote service. It sees a tool name and schema. The host decides how to execute the request
+
+
+The key lesson
+Keep these three concepts separate:
+- Process startup: Can Python launch mcp_server.py?
+- Transport: Can the client and server exchange MCP messages over stdio?
+- Protocol: Can they successfully initialize, list tools, and call them?

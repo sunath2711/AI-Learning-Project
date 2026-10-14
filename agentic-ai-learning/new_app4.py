@@ -1,3 +1,4 @@
+import inspect
 import json
 import os
 import urllib.request
@@ -166,7 +167,8 @@ tool_definitions = [
                     "description": "Second number"
                 }
             },
-            "required": ["a", "b"]
+            "required": ["a", "b"],
+            "additionalProperties": False
         },
         "function": calculate
     },
@@ -186,7 +188,8 @@ tool_definitions = [
                     "description": "Number to divide by"
                 }
             },
-            "required": ["a", "b"]
+            "required": ["a", "b"],
+            "additionalProperties": False
         },
         "function": divide
     }
@@ -238,7 +241,12 @@ def execute_tool(tool_call, tool_registry):
     function_name = tool_call["function"]["name"]
 
     print("LLM selected tool:", function_name)
-
+    try:
+        inspect.signature(tool_function).bind(**arguments)
+    except TypeError as e:
+        tool_content = f"Tool execution failed: invalid arguments: {e}"
+        print(tool_content)
+        return tool_content
     # Look up the actual Python function
     tool_function = tool_registry.get(function_name)
 
