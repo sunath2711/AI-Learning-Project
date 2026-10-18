@@ -2430,3 +2430,51 @@ tool.inputSchema	function.parameters
 So the client transforms the MCP definition into the format OpenRouter expects.
 Why do this? Because MCP and the LLM API use different interfaces for describing tools. Your client acts as the adapter between them.
 
+1. The entire flow at a glance
+1. Run mcp_client_test2.py
+Python starts the client program.
+
+
+2. Start mcp_server.py
+The client launches a separate Python process and opens an MCP connection over stdio.
+
+
+3. Discover tools
+session.initialize() and session.list_tools() establish the session and retrieve tool definitions.
+
+
+4. Ask OpenRouter
+The client sends the user request and tool schemas to the LLM.
+
+
+5. LLM selects divide
+The LLM returns the tool name and JSON-encoded arguments.
+
+
+6. Execute via MCP
+The client calls session.call_tool(); the server runs divide(100, 5) and returns 20.0.
+
+asyncio	Runs asynchronous code and manages the async event loop.
+json	Converts JSON strings into Python dictionaries and vice versa.
+subprocess	Provides subprocess.DEVNULL to discard the child process's stderr output.
+sys	Provides sys.executable, the Python interpreter currently running your client.
+Path	Builds reliable filesystem paths.
+ClientSession	Provides methods for communicating with an MCP server.
+StdioServerParameters	Defines how to launch the local MCP server process.
+stdio_client	Starts the process and establishes communication using standard input and output.
+
+
+Why use a separate process? The MCP server runs independently of the client. It can own its tools and dependencies while the client communicates with it through the MCP protocol.
+
+
+You now have a working pipeline that:
+- Discovers tools from an MCP server instead of hardcoding them in the client.
+- Supplies those tool definitions to an LLM.
+- Lets the LLM choose a tool and generate arguments.
+- Converts those arguments into Python data.
+- Executes the requested tool through MCP.
+- Receives and prints the tool result.
+There is one final piece before this becomes a complete LLM tool-use cycle: send the result back to the LLM.
+Currently, your program stops after printing 20.0. The model hasn't received that result, so it hasn't generated a final answer such as, “100 divided by 5 equals 20.”
+In the next step, we can append the assistant's tool-call message and the MCP tool result to the conversation, then call OpenRouter again. That completes the cycle:
+LLM chooses tool → MCP executes tool → result returns to LLM → LLM responds to the user.
