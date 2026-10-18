@@ -1,5 +1,6 @@
 
 import asyncio
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -28,13 +29,33 @@ async def main():
             # 3. Initialize the MCP connection
             await session.initialize()
             print("Connected to MCP server!")
+            #This establishes the MCP session and performs the initialization handshake between the client and server.
 
             # 4. Discover available tools
             response = await session.list_tools()
 
+            # print("\nAvailable tools:")
+            # for tool in response.tools:
+            #     print(tool.inputSchema)
+            #     print(f"- {tool.name}: {tool.description}")
             print("\nAvailable tools:")
+
+            llm_tools = []
+
             for tool in response.tools:
                 print(f"- {tool.name}: {tool.description}")
+
+                llm_tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description or "",
+                        "parameters": tool.inputSchema
+                    }
+                })
+
+            print("\nTool schemas for the LLM:")
+            print(json.dumps(llm_tools, indent=2))
 
             # 5. Ask the server to execute a tool
             result = await session.call_tool(

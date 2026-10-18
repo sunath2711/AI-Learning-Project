@@ -2372,3 +2372,61 @@ Keep these three concepts separate:
 - Process startup: Can Python launch mcp_server.py?
 - Transport: Can the client and server exchange MCP messages over stdio?
 - Protocol: Can they successfully initialize, list tools, and call them?
+
+
+
+Our goal is to connect MCP to your existing agent (new_app4.py) so the LLM can decide when to use tools hosted on an MCP server.
+1. User
+"Divide 100 by 5"
+
+2. Agent + LLM
+LLM decides whether a tool is needed
+
+3. MCP client
+Discovers tools and sends tool calls
+
+4. MCP server
+Executes divide(100, 5) and returns 20.0
+
+5. Agent + LLM
+LLM uses the result to formulate the final answer
+
+
+The key change from your earlier agent is that the tools will no longer need to be executed directly through a local Python tool_registry. The agent will communicate with the MCP server through an MCP client.
+
+
+Convert MCP tools into LLM tool schemas
+The MCP server returns tools with this general structure:
+tool.nametool.descriptiontool.inputSchema
+
+
+
+Your OpenRouter API expects a structure like this:
+{
+  "type": "function",
+  "function": {
+    "name": "divide",
+    "description": "Divide the first number by the second number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": {"type": "number"},
+        "b": {"type": "number"}
+      },
+      "required": ["a", "b"]
+    }
+  }
+}
+
+
+The important mapping is:
+MCP tool field	LLM API field
+tool.name	function.name
+tool.description	function.description
+tool.inputSchema	function.parameters
+
+
+
+So the client transforms the MCP definition into the format OpenRouter expects.
+Why do this? Because MCP and the LLM API use different interfaces for describing tools. Your client acts as the adapter between them.
+
