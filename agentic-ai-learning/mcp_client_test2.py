@@ -99,6 +99,7 @@ async def main():
                     ],
                     "tools": llm_tools,
                     "tool_choice": "auto",
+                    # "tool_choice": "required",                    
                 }
 
                 # # 4. Send the request to OpenRouter
@@ -234,8 +235,8 @@ async def main():
                             "content": tool_result,
                         })
 
-                    else:
-                        print("Stopped: maximum tool-call iterations reached.")
+                else:
+                    print("Stopped: maximum tool-call iterations reached.")
                     # # 5. Ask the LLM to respond using the tool result
                     # final_payload = {
                     #     "model": "nvidia/nemotron-3.5-lightning:free",

@@ -2478,3 +2478,97 @@ There is one final piece before this becomes a complete LLM tool-use cycle: send
 Currently, your program stops after printing 20.0. The model hasn't received that result, so it hasn't generated a final answer such as, “100 divided by 5 equals 20.”
 In the next step, we can append the assistant's tool-call message and the MCP tool result to the conversation, then call OpenRouter again. That completes the cycle:
 LLM chooses tool → MCP executes tool → result returns to LLM → LLM responds to the user.
+
+
+Good question, bro. The key distinction is that forcing a tool call does not mean forcing the model to use tools for every mathematical operation.
+Your program has two separate components making decisions:
+1. The LLM decides which available tool to call and generates the explanation.
+2. Your Python agent executes the requested tool, returns its result, and asks the LLM what to do next.
+Let's use your exact example.
+What happened when you set tool_choice = "required"?
+Your MCP server only has these tools:
+Tool	What it can do
+calculate(a, b)	Add two numbers
+divide(a, b)	Divide one number by another
+The model chose divide(1000, 4), and your MCP server returned 250.0.
+But notice what that result tells us:
+\[
+1000 \div 4 = 250
+\]
+
+It doesn't directly return the remainder. The model already knows the arithmetic rule that if \(1000 = 4 \times 250\), the remainder is zero.
+It can then reason:
+\[
+(1000 \bmod 4) = 0
+\]
+
+\[
+90 + 80 = 170
+\]
+
+\[
+(0 \times 170)^2 = 0
+\]
+
+The model can perform the remaining arithmetic itself, even though you haven't exposed tools for modulo, multiplication, or squaring.
+Why did it still print a final answer with required?
+"required" applies to each individual LLM API request, not to the whole user task.
+Your flow can look like this:
+LLM request 1
+Tool required → requests divide(1000, 4)
+
+MCP server
+Executes division → returns 250.0
+
+LLM request 2
+If tools are still required, requests another tool call
+
+Your program prints the final answer
+If a separate request or old code produces text, it can print the answer even though the tool loop did not finish normally.
+
+
+Add one MCP resource and one prompt
+We’ll add these to your existing mcp_server.py, without changing the working tools.
+- Resource: exposes read-only information the client can retrieve, such as the calculator's capabilities.
+- Prompt: exposes a reusable prompt template that a client can request when it needs help with a task.
+
+he main architectural change is this:
+- Before: Agent receives tools and a local tool_registry, then executes Python functions directly.
+- After: Agent discovers tool schemas from the MCP server and sends tool calls through an MCP client session. The MCP server executes the functions and returns results.
+
+
+Understand the execution flow
+1. User request
+
+Add 125 and 75, then divide by 4.
+
+2. LLM — first request
+
+Chooses the calculate tool.
+
+3. MCP client → MCP server
+
+Executes calculate(125, 75) → 200
+
+4. LLM — next request
+
+Receives the tool result and chooses divide.
+
+5. MCP client → MCP server
+
+Executes divide(200, 4) → 50
+
+6. LLM — final request
+
+Produces the final answer: 50.
+
+
+You now have the core pieces of an MCP-based agent:
+- LLM client: sends requests to OpenRouter.
+- Agent loop: repeatedly asks the LLM what to do next.
+- Conversation memory: preserves the sequence of user, assistant, and tool messages.
+- Persistent user memory: injects saved facts into each LLM request.
+- MCP client: discovers and invokes remote-style tools using the MCP protocol.
+- MCP server: exposes Python functions, plus your previously tested resource and prompt examples.
+- Execution accounting: records request counts, tool-call counts, and token usage.
+The architecture is reusable: you could replace the calculator server with a server exposing deployment status, Kubernetes queries, log searches, or other permitted operations without fundamentally rewriting the agent loop.
